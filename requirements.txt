@@ -1,0 +1,23 @@
+# WiFi Camera Dependencies
+
+# Core
+numpy>=1.26.0
+scipy>=1.11.0
+
+# SDR
+pyrtlsdr>=0.3.0
+
+# Video capture
+opencv-python>=4.8.0
+
+# GPS/timing
+pyserial>=3.5
+
+# Data handling
+h5py>=3.9.0
+
+# Visualization (optional, for analysis)
+matplotlib>=3.7.0
+
+# Performance
+numba>=0.58.0
