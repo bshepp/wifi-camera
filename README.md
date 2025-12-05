@@ -88,6 +88,28 @@ python monitor.py             # Single status snapshot
 python sanity_check.py data/<session_id>
 ```
 
+### Spectrum Sweep
+
+Synchronized full-band capture across all SDRs (25 MHz - 6 GHz):
+
+```bash
+# Quick test (100-500 MHz, 10 MHz steps) ~1 minute
+./spectrum_sweep.py --quick
+
+# Full spectrum (25 MHz - 6 GHz, 2 MHz steps) ~2 hours
+./spectrum_sweep.py --full
+
+# Custom range
+./spectrum_sweep.py --start 400 --end 1000 --step 5
+
+# WiFi 2.4 GHz band
+./spectrum_sweep.py --start 2400 --end 2500 --step 1
+```
+
+**Output:** Per-frequency IQ files + video frames with timestamp correlation.
+
+**Note:** RTL-SDRs only cover 25-1750 MHz; HackRF covers full range to 6 GHz.
+
 ## Output Structure
 
 ```
@@ -258,6 +280,7 @@ corr = cusignal.correlate(ref_gpu, surv_gpu, mode='full')
 - HackRF uses signed int8 (different from RTL-SDR unsigned int8)
 - GPS provides time offset measurement (u-blox 7 receiver supported)
 - **RTL-SDR frequency limitation**: NESDR SMArt v5 max frequency is 1.75 GHz (cannot receive 2.4 GHz WiFi without downconverters)
+- **RTL-SDR thermal throttling**: Extended captures (>30 min) can cause overheating and device crashes. Add heatsinks and/or cooling breaks for long spectrum sweeps
 
 ## 915 MHz Bistatic Radar Subsystem
 

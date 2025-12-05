@@ -82,6 +82,13 @@ Physical layout:
 - Position metadata for captures
 - Background threaded reading
 
+**spectrum_sweep.py** - Full-band synchronized spectrum capture
+- Sweeps 25 MHz - 6 GHz with all SDRs + webcam
+- Barrier synchronization at each frequency step
+- RTL-SDRs active ≤1750 MHz, HackRF covers full range
+- Outputs per-frequency IQ files with timestamp correlation
+- Modes: `--quick` (test), `--full` (2 hours), `--start/--end` (custom)
+
 ## Common Development Tasks
 
 ### Environment Setup
@@ -211,6 +218,7 @@ Total sustained rate: ~25 MB/s
 3. **Antenna Mismatch**: Current setup uses mismatched antennas → weaker correlation
 4. **GPS Time Offset**: GPS provides system clock offset measurement (~285ms typical)
 5. **Buffer Overflows**: At high CPU load, SDR processes may drop samples
+6. **RTL-SDR Thermal Throttling**: Devices overheat during extended captures (>30 min). Add heatsinks or cooling breaks. Full spectrum sweeps (~2 hours) will likely cause thermal crashes without cooling.
 
 ## Testing & Validation
 
