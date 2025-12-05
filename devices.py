@@ -177,7 +177,7 @@ class DeviceManager:
 
             # Parse device info
             device_pattern = re.compile(
-                r'(\d+):\s+(\w+),\s+(\w+),\s+SN:\s+(\w+)'
+                r'(\d+):\s+(\w+),\s+(.+?),\s+SN:\s+(\w+)'
             )
             for match in device_pattern.finditer(output):
                 idx = int(match.group(1))

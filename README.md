@@ -22,8 +22,8 @@ This project captures synchronized data from multiple SDRs and a webcam to exper
 
 | Device | Role | Sample Rate | Notes |
 |--------|------|-------------|-------|
-| RTL-SDR x2 | Surveillance channels | 2.4 MSPS | Omnidirectional antennas, 38cm baseline |
-| HackRF One | Reference channel | 10 MSPS | Log-periodic directional antenna |
+| RTL-SDR x2 | Surveillance channels | 2.56 MSPS | Omnidirectional antennas, 38cm baseline |
+| HackRF One | Reference channel | 8 MSPS | Log-periodic directional antenna |
 | Webcam | Visual ground truth | 30 fps | 1280x720 MJPEG |
 
 ### Passive Radar Concept
@@ -257,6 +257,35 @@ corr = cusignal.correlate(ref_gpu, surv_gpu, mode='full')
 - Mismatched antennas cause weak cross-correlation (matched pair recommended)
 - HackRF uses signed int8 (different from RTL-SDR unsigned int8)
 - GPS provides time offset measurement (u-blox 7 receiver supported)
+- **RTL-SDR frequency limitation**: NESDR SMArt v5 max frequency is 1.75 GHz (cannot receive 2.4 GHz WiFi without downconverters)
+
+## 915 MHz Bistatic Radar Subsystem
+
+Due to RTL-SDR hardware limitations (1.75 GHz max), a separate 915 MHz bistatic radar system has been developed for testing passive radar techniques.
+
+**Location:** `radar_test_915mhz/`
+
+**Configuration:**
+```
+[RTL-SDR LEFT] <--38cm--> [HackRF TX] <--38cm--> [RTL-SDR RIGHT]
+                            [WEBCAM]
+```
+
+**Key Differences from Main System:**
+- **Frequency:** 915 MHz ISM band (legal unlicensed transmission)
+- **HackRF Role:** Transmits CW beacon (not receiving)
+- **RTL-SDRs:** Both act as surveillance receivers
+- **Same Infrastructure:** Uses identical timing/sync code as main wifi-camera
+
+**Quick Start:**
+```bash
+cd radar_test_915mhz
+./capture_bistatic_915.py --duration 300  # 5-minute capture
+```
+
+**Validation:** Successfully tested with 5-minute capture showing perfect synchronization (1.00 correlation confidence, <0.1% sample loss). See `radar_test_915mhz/README.md` for complete documentation.
+
+**Purpose:** Proof-of-concept for passive radar processing pipeline before obtaining 2.4 GHz downconverters for WiFi passive radar.
 
 ## Status
 

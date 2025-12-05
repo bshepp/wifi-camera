@@ -23,8 +23,8 @@ SPEED_OF_LIGHT = 299_792_458  # m/s
 class ProcessingParams:
     """Parameters for signal processing"""
     # Sample rates
-    rtlsdr_sample_rate: int = 2_400_000
-    hackrf_sample_rate: int = 20_000_000
+    rtlsdr_sample_rate: int = 2_560_000
+    hackrf_sample_rate: int = 8_000_000
 
     # Physical parameters
     center_frequency: float = 2.437e9  # Hz (Channel 6)

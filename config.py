@@ -28,7 +28,7 @@ PRIMARY_CHANNELS = [1, 6, 11]
 @dataclass
 class RTLSDRConfig:
     """Configuration for RTL-SDR devices"""
-    sample_rate: int = 2_400_000  # 2.4 MSPS (max stable)
+    sample_rate: int = 2_560_000  # 2.56 MSPS (recommended stable max)
     frequency: int = 2_437_000_000  # Channel 6 center (Hz)
     gain: float = -1.0  # dB - use -1 for automatic gain (required for faulty LNA device)
     ppm_correction: int = 0
@@ -42,7 +42,7 @@ class RTLSDRConfig:
 @dataclass
 class HackRFConfig:
     """Configuration for HackRF One"""
-    sample_rate: int = 10_000_000  # 10 MSPS (reduced from 20 to avoid USB saturation)
+    sample_rate: int = 8_000_000  # 8 MSPS (recommended for USB 2.0 stability)
     frequency: int = 2_437_000_000  # Channel 6 center (Hz)
     lna_gain: int = 32  # 0-40 dB in 8 dB steps
     vga_gain: int = 30  # 0-62 dB in 2 dB steps

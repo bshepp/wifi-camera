@@ -10,7 +10,7 @@ WiFi Camera is an experimental passive WiFi radar/imaging system that captures s
 
 The system uses 4 synchronized devices:
 - **2x RTL-SDR dongles** (surveillance channels): Left and right positions with omnidirectional antennas, 38cm baseline
-- **1x HackRF One** (reference channel): Directional log-periodic antenna, 10 MSPS
+- **1x HackRF One** (reference channel): Directional log-periodic antenna, 8 MSPS
 - **1x Webcam**: Visual ground truth at 1280x720, 30fps
 
 Physical layout:
@@ -27,8 +27,8 @@ Physical layout:
 4. Phase difference between RTL-SDR pair estimates angle of arrival
 
 **Data Formats:**
-- RTL-SDR: **unsigned** 8-bit IQ (center: 127.5), 2.4 MSPS
-- HackRF: **signed** 8-bit IQ (center: 0), 10 MSPS
+- RTL-SDR: **unsigned** 8-bit IQ (center: 127.5), 2.56 MSPS
+- HackRF: **signed** 8-bit IQ (center: 0), 8 MSPS
 - This format difference is critical and handled in `load_iq_data()` in process.py
 
 ## Code Architecture
@@ -228,6 +228,48 @@ Successful capture indicators (from sanity_check.py):
 3. **Real-time Processing**: Live correlation display during capture
 4. **Matched Antennas**: Identical antennas for better phase coherence
 5. **Machine Learning**: Pattern recognition correlating RF and visual data
+
+## 915 MHz Bistatic Radar Subsystem
+
+**Location:** `radar_test_915mhz/`
+
+**Rationale:** RTL-SDR dongles (NESDR SMArt v5) have a maximum frequency of 1.75 GHz and cannot receive 2.4 GHz WiFi signals. A separate 915 MHz ISM band passive radar system was created for testing and development.
+
+**Hardware Configuration:**
+```
+[RTL-SDR LEFT] <--38cm--> [HackRF TX] <--38cm--> [RTL-SDR RIGHT]
+                            [WEBCAM]
+```
+
+**Key Differences from Main System:**
+- **Frequency:** 915 MHz (902-928 MHz ISM band)
+- **HackRF:** Transmits CW beacon (`beacon_900mhz_cw.iq`) - not receiving
+- **RTL-SDRs:** Both act as surveillance channels (bistatic configuration)
+- **Sample Rate:** 2.56 MSPS (same as main system)
+- **Synchronization:** Uses same barrier sync and timing infrastructure
+
+**Main Script:** `capture_bistatic_915.py`
+- Simplified version of `capture.py` adapted for bistatic operation
+- Records `first_data_time` for microsecond-precision synchronization
+- Outputs same structure: timing.json, metadata.json, IQ bins, frames/
+
+**Validation Results (5-minute test):**
+```
+Capture duration: 302.1s
+Streams:
+  ✓ rtlsdr_left:  722,993,152 samples - loss: -0.02%
+  ✓ rtlsdr_right: 723,255,296 samples - loss: -0.06%
+  ✓ webcam: 9,000 frames @ 29.8 fps
+
+Cross-correlation:
+  Offset: +40,120 samples (+16.72 ms)
+  Confidence: 1.00 (perfect!)
+  Clock drift: 0.76 ppm
+```
+
+**Status:** Successfully validated. Ready for passive radar processing development before implementing 2.4 GHz downconverters for WiFi operation.
+
+**Documentation:** See `radar_test_915mhz/README.md` for complete usage guide.
 
 ## System Context
 

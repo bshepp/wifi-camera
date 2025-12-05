@@ -200,7 +200,7 @@ def estimate_offset_correlation(sig1: np.ndarray, sig2: np.ndarray,
 def measure_clock_drift(filepath1: Path, filepath2: Path,
                         sample_rate: float,
                         signed1: bool = False, signed2: bool = False,
-                        chunk_samples: int = 2400000,
+                        chunk_samples: int = 2560000,
                         num_chunks: int = 10) -> DriftResult:
     """
     Measure clock drift between two streams by comparing alignment at different times.
@@ -381,7 +381,7 @@ class SessionSync:
                 continue
             
             is_signed = 'hackrf' in name
-            rate = sample_rates.get('hackrf' if is_signed else 'rtlsdr', 2400000)
+            rate = sample_rates.get('hackrf' if is_signed else 'rtlsdr', 2560000)
             
             self.streams[name] = StreamInfo(
                 name=name,
