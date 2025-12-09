@@ -90,8 +90,9 @@ Physical layout:
 
 **spectrum_sweep_async.py** - Async parallel spectrum sweep (faster)
 - All SDRs sweep independently at maximum speed
-- RTL-SDRs loop continuously (multiple passes), HackRF single sweep
-- Total time ~7-8 minutes vs ~2 hours for lockstep
+- RTL-SDRs loop continuously (multiple passes)
+- HackRF: single sweep (default) or continuous with `--continuous`
+- Duration-based capture: `--duration 1800` for 30 minutes
 - Per-device timing logs for post-capture correlation
 - Better thermal distribution and more total RF data
 

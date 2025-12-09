@@ -110,18 +110,24 @@ Synchronized full-band capture across all SDRs (25 MHz - 6 GHz):
 
 The async sweep runs all devices in parallel continuously:
 - RTL-SDRs loop through their range (25 MHz - 1.75 GHz) multiple times
-- HackRF does a single sweep through full range (25 MHz - 6 GHz)
-- ~7-8 minutes total vs ~2 hours for lockstep mode
+- HackRF sweeps full range (25 MHz - 6 GHz), single pass or continuous
+- Duration-based capture or until HackRF completes
 
 ```bash
-# Full async sweep
+# Full async sweep (until HackRF finishes ~7-8 min)
 ./spectrum_sweep_async.py --full
 
-# Quick async test
+# Run for specific duration (30 minutes)
+./spectrum_sweep_async.py --duration 1800
+
+# Continuous mode - all devices loop until stopped
+./spectrum_sweep_async.py --continuous --duration 3600  # 1 hour
+
+# Quick async test (60 seconds)
 ./spectrum_sweep_async.py --quick
 
 # Custom settings
-./spectrum_sweep_async.py --rtl-end 1000 --hackrf-end 3000 --rtl-step 5
+./spectrum_sweep_async.py --rtl-end 1000 --hackrf-end 3000 --duration 600
 ```
 
 **Output:** Per-frequency IQ files + video frames with timestamp correlation.

@@ -65,7 +65,9 @@ class AsyncSweepConfig:
     hackrf_vga_gain: int = 20
     
     # Control
-    max_rtlsdr_passes: int = 10  # Max loops before stopping (0 = unlimited until HackRF done)
+    max_rtlsdr_passes: int = 0   # Max loops before stopping (0 = unlimited)
+    duration_seconds: int = 0    # Run for this many seconds (0 = until HackRF done or max_passes)
+    hackrf_continuous: bool = False  # HackRF also loops continuously
     
     @property
     def rtlsdr_frequencies_mhz(self) -> List[float]:
@@ -256,11 +258,13 @@ class HackRFSweeper(DeviceSweeper):
     """Async HackRF frequency sweeper"""
     
     def __init__(self, output_dir: Path, config: AsyncSweepConfig, 
-                 stop_event: threading.Event, done_event: threading.Event):
+                 stop_event: threading.Event, done_event: threading.Event,
+                 continuous: bool = False):
         super().__init__("hackrf", output_dir, stop_event)
         self.config = config
         self.frequencies = config.hackrf_frequencies_mhz
-        self.done_event = done_event  # Signal when HackRF completes
+        self.done_event = done_event  # Signal when HackRF completes (if not continuous)
+        self.continuous = continuous  # Loop continuously like RTL-SDRs
         
     def capture_frequency(self, freq_hz: int, freq_mhz: float, 
                          step_num: int) -> Optional[CaptureRecord]:
@@ -306,27 +310,34 @@ class HackRFSweeper(DeviceSweeper):
             return None
     
     def run(self, progress_callback=None):
-        """Run single sweep through full range"""
-        self.pass_count = 1
+        """Run sweep through full range (single or continuous)"""
         
-        for i, freq_mhz in enumerate(self.frequencies):
-            if self.stop_event.is_set():
+        while not self.stop_event.is_set():
+            self.pass_count += 1
+            
+            for i, freq_mhz in enumerate(self.frequencies):
+                if self.stop_event.is_set():
+                    break
+                    
+                freq_hz = int(freq_mhz * 1e6)
+                
+                record = self.capture_frequency(freq_hz, freq_mhz, i)
+                if record:
+                    record.pass_number = self.pass_count
+                    self.log_capture(record)
+                    
+                if progress_callback:
+                    progress_callback("hackrf", self.pass_count, i + 1, 
+                                    len(self.frequencies), freq_mhz)
+                
+                # Settling time
+                time.sleep(self.config.hackrf_settling_ms / 1000)
+            
+            # If not continuous mode, exit after first sweep
+            if not self.continuous:
                 break
-                
-            freq_hz = int(freq_mhz * 1e6)
-            
-            record = self.capture_frequency(freq_hz, freq_mhz, i)
-            
-            if record:
-                self.log_capture(record)
-                
-            if progress_callback:
-                progress_callback("hackrf", 1, i + 1, len(self.frequencies), freq_mhz)
-            
-            # Settling time
-            time.sleep(self.config.hackrf_settling_ms / 1000)
         
-        # Signal completion
+        # Signal completion (only matters in non-continuous mode)
         self.done_event.set()
         
         return self.save_timing()
@@ -455,19 +466,34 @@ class AsyncSweepCapture:
                 "pct": (step / total) * 100
             }
             
-    def display_progress(self):
+    def display_progress(self, start_time: float):
         """Background thread to display progress"""
+        duration = self.config.duration_seconds
+        
         while not self.stop_event.is_set() and not self.hackrf_done_event.is_set():
+            elapsed = time.time() - start_time
+            
             with self.progress_lock:
                 parts = []
+                
+                # Time display
+                if duration > 0:
+                    remaining = max(0, duration - elapsed)
+                    parts.append(f"T:{int(elapsed)}s/{duration}s")
+                else:
+                    parts.append(f"T:{int(elapsed)}s")
+                
                 for name in ['left', 'right', 'hackrf']:
                     if name in self.progress:
                         p = self.progress[name]
                         if name == 'hackrf':
-                            parts.append(f"H:{p['freq']:6.0f}MHz {p['pct']:4.1f}%")
+                            if self.config.hackrf_continuous:
+                                parts.append(f"H:p{p['pass']} {p['freq']:5.0f}MHz")
+                            else:
+                                parts.append(f"H:{p['freq']:5.0f}MHz {p['pct']:4.1f}%")
                         else:
                             n = 'L' if name == 'left' else 'R'
-                            parts.append(f"{n}:p{p['pass']} {p['freq']:6.0f}MHz")
+                            parts.append(f"{n}:p{p['pass']} {p['freq']:5.0f}MHz")
                             
                 if parts:
                     line = " | ".join(parts)
@@ -499,7 +525,8 @@ class AsyncSweepCapture:
             hackrf_dir = iq_base / "hackrf"
             hackrf_sweeper = HackRFSweeper(
                 hackrf_dir, self.config, 
-                self.stop_event, self.hackrf_done_event
+                self.stop_event, self.hackrf_done_event,
+                continuous=self.config.hackrf_continuous
             )
             self.sweepers['hackrf'] = hackrf_sweeper
             
@@ -509,9 +536,6 @@ class AsyncSweepCapture:
                 name="hackrf_sweep"
             )
             threads.append(t)
-        else:
-            # No HackRF - set time limit for RTL-SDRs
-            pass
             
         # Create and start RTL-SDR sweepers
         if self.rtlsdr_left:
@@ -547,6 +571,7 @@ class AsyncSweepCapture:
         # Start progress display
         progress_thread = threading.Thread(
             target=self.display_progress,
+            args=(sweep_start,),
             name="progress_display",
             daemon=True
         )
@@ -556,21 +581,42 @@ class AsyncSweepCapture:
         print("Starting device sweeps...")
         for t in threads:
             t.start()
+        
+        # Determine stop condition
+        duration = self.config.duration_seconds
+        use_duration = duration > 0
+        
+        if use_duration:
+            print(f"Running for {duration}s ({duration/60:.1f} min)...")
+        elif self.config.hackrf_continuous:
+            print("Running continuously (Ctrl+C to stop)...")
+        else:
+            print("Running until HackRF completes...")
             
-        # Wait for HackRF to complete (or all threads if no HackRF)
+        # Wait for completion
         try:
-            if self.hackrf:
-                # Wait for HackRF completion
-                while not self.hackrf_done_event.is_set():
+            if use_duration:
+                # Duration-based: wait for timer
+                end_time = sweep_start + duration
+                while time.time() < end_time and not self.stop_event.is_set():
+                    remaining = end_time - time.time()
+                    time.sleep(min(1.0, remaining))
+                    
+                print(f"\n\nDuration reached ({duration}s), stopping...")
+                self.stop_event.set()
+                
+            elif self.hackrf and not self.config.hackrf_continuous:
+                # Wait for HackRF completion (original behavior)
+                while not self.hackrf_done_event.is_set() and not self.stop_event.is_set():
                     self.hackrf_done_event.wait(timeout=1.0)
                     
-                # Signal RTL-SDRs to stop
-                print("\n\nHackRF sweep complete, stopping RTL-SDRs...")
-                self.stop_event.set()
+                if not self.stop_event.is_set():
+                    print("\n\nHackRF sweep complete, stopping RTL-SDRs...")
+                    self.stop_event.set()
             else:
-                # No HackRF - just wait for threads
-                for t in threads:
-                    t.join()
+                # Continuous mode with no duration - wait for Ctrl+C
+                while not self.stop_event.is_set():
+                    time.sleep(1.0)
                     
         except KeyboardInterrupt:
             print("\n\nInterrupt received, stopping...")
@@ -672,8 +718,12 @@ def main():
                         help='HackRF samples per step (default: 800000)')
     
     # Control options
+    parser.add_argument('--duration', '-t', type=int, default=0,
+                        help='Run for N seconds (0 = until HackRF done or continuous)')
+    parser.add_argument('--continuous', '-c', action='store_true',
+                        help='All devices sweep continuously (requires --duration or Ctrl+C)')
     parser.add_argument('--max-passes', type=int, default=0,
-                        help='Max RTL-SDR passes (0 = until HackRF done)')
+                        help='Max RTL-SDR passes (0 = unlimited)')
     parser.add_argument('--settling', type=int, default=20,
                         help='Settling time ms (default: 20)')
     parser.add_argument('--output-dir', type=str, default=None,
@@ -681,9 +731,9 @@ def main():
     
     # Presets
     parser.add_argument('--quick', action='store_true',
-                        help='Quick test: 100-500 MHz, 10 MHz steps')
+                        help='Quick test: 100-500 MHz, 10 MHz steps, 60s duration')
     parser.add_argument('--full', action='store_true',
-                        help='Full async sweep (default settings)')
+                        help='Full async sweep (HackRF single pass)')
     
     args = parser.parse_args()
     
@@ -697,6 +747,8 @@ def main():
         args.hackrf_step = 10.0
         args.rtl_samples = 128000
         args.hackrf_samples = 400000
+        if args.duration == 0:
+            args.duration = 60  # 1 minute default for quick test
         
     # Build config
     config = AsyncSweepConfig(
@@ -711,7 +763,9 @@ def main():
         hackrf_freq_step_mhz=args.hackrf_step,
         hackrf_samples_per_step=args.hackrf_samples,
         hackrf_settling_ms=args.settling,
-        max_rtlsdr_passes=args.max_passes
+        max_rtlsdr_passes=args.max_passes,
+        duration_seconds=args.duration,
+        hackrf_continuous=args.continuous
     )
     
     # Create output directory
