@@ -11,8 +11,7 @@ WiFi Camera is an experimental passive WiFi radar/imaging system that captures s
 The system uses 4 synchronized devices:
 - **2x RTL-SDR dongles** (surveillance channels): Left and right positions with omnidirectional antennas, 38cm baseline
 - **1x HackRF One** (reference channel): Directional log-periodic antenna, 8 MSPS
-- **1x Webcam**: Visual ground truth at 1280x720, 30fps
-
++
 Physical layout:
 ```
 [RTL-SDR LEFT] <--38cm--> [HackRF+WEBCAM] <--38cm--> [RTL-SDR RIGHT]
@@ -82,12 +81,19 @@ Physical layout:
 - Position metadata for captures
 - Background threaded reading
 
-**spectrum_sweep.py** - Full-band synchronized spectrum capture
+**spectrum_sweep.py** - Lockstep synchronized spectrum capture
 - Sweeps 25 MHz - 6 GHz with all SDRs + webcam
 - Barrier synchronization at each frequency step
 - RTL-SDRs active ≤1750 MHz, HackRF covers full range
 - Outputs per-frequency IQ files with timestamp correlation
-- Modes: `--quick` (test), `--full` (2 hours), `--start/--end` (custom)
+- Modes: `--quick` (test), `--full` (~2 hours), `--start/--end` (custom)
+
+**spectrum_sweep_async.py** - Async parallel spectrum sweep (faster)
+- All SDRs sweep independently at maximum speed
+- RTL-SDRs loop continuously (multiple passes), HackRF single sweep
+- Total time ~7-8 minutes vs ~2 hours for lockstep
+- Per-device timing logs for post-capture correlation
+- Better thermal distribution and more total RF data
 
 ## Common Development Tasks
 

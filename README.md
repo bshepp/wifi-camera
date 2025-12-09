@@ -106,6 +106,24 @@ Synchronized full-band capture across all SDRs (25 MHz - 6 GHz):
 ./spectrum_sweep.py --start 2400 --end 2500 --step 1
 ```
 
+#### Async Sweep (Faster)
+
+The async sweep runs all devices in parallel continuously:
+- RTL-SDRs loop through their range (25 MHz - 1.75 GHz) multiple times
+- HackRF does a single sweep through full range (25 MHz - 6 GHz)
+- ~7-8 minutes total vs ~2 hours for lockstep mode
+
+```bash
+# Full async sweep
+./spectrum_sweep_async.py --full
+
+# Quick async test
+./spectrum_sweep_async.py --quick
+
+# Custom settings
+./spectrum_sweep_async.py --rtl-end 1000 --hackrf-end 3000 --rtl-step 5
+```
+
 **Output:** Per-frequency IQ files + video frames with timestamp correlation.
 
 **Note:** RTL-SDRs only cover 25-1750 MHz; HackRF covers full range to 6 GHz.
@@ -241,6 +259,8 @@ This provides:
 | `monitor.py` | Live monitoring tool |
 | `sanity_check.py` | Data validation and quality check |
 | `process.py` | Signal processing algorithms |
+| `spectrum_sweep.py` | Lockstep multi-SDR spectrum sweep |
+| `spectrum_sweep_async.py` | Async parallel spectrum sweep (faster) |
 | `sync.py` | Synchronization analysis and alignment |
 | `gps.py` | GPS time and position reading |
 | `devices.py` | Hardware detection and identification |
