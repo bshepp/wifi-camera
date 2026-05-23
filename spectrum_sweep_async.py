@@ -175,22 +175,21 @@ class RTLSDRSweeper(DeviceSweeper):
         self.config = config
         self.frequencies = config.rtlsdr_frequencies_mhz
         
-    def capture_frequency(self, freq_hz: int, freq_mhz: float, 
+    def capture_frequency(self, freq_hz: int, freq_mhz: float,
                          pass_num: int, step_num: int) -> Optional[CaptureRecord]:
         """Capture IQ at a single frequency"""
-        bytes_to_capture = self.config.rtlsdr_samples_per_step * 2
-        
         # Build filename
         freq_str = f"{int(freq_mhz):05d}"
         filename = f"{self.name}_p{pass_num:02d}_{step_num:04d}_{freq_str}mhz.bin"
         filepath = self.output_dir / filename
-        
+
+        # rtl_sdr's -n counts IQ pairs (2 bytes each on disk).
         cmd = [
             'rtl_sdr',
             '-d', str(self.device_index),
             '-f', str(freq_hz),
             '-s', str(self.config.rtlsdr_sample_rate),
-            '-n', str(bytes_to_capture),
+            '-n', str(self.config.rtlsdr_samples_per_step),
             str(filepath)
         ]
         
@@ -274,6 +273,7 @@ class HackRFSweeper(DeviceSweeper):
         filename = f"hackrf_{step_num:04d}_{freq_str}mhz.bin"
         filepath = self.output_dir / filename
         
+        # hackrf_transfer's -n counts IQ pairs (2 bytes each on disk).
         cmd = [
             'hackrf_transfer',
             '-r', str(filepath),
@@ -281,7 +281,7 @@ class HackRFSweeper(DeviceSweeper):
             '-s', str(self.config.hackrf_sample_rate),
             '-l', str(self.config.hackrf_lna_gain),
             '-g', str(self.config.hackrf_vga_gain),
-            '-n', str(self.config.hackrf_samples_per_step * 2)
+            '-n', str(self.config.hackrf_samples_per_step)
         ]
         
         timestamp = time.time()

@@ -113,6 +113,42 @@ class DeviceManager:
             pass
         return f"{bus}-unknown"
 
+    def _enumerate_usb_by_vid_pid(self, vendor_id: str,
+                                   product_id: str) -> List[Tuple[int, int, str]]:
+        """
+        Enumerate USB devices by VID:PID from sysfs.
+
+        Returns a list of (bus, devnum, port_path) tuples sorted by (bus, devnum),
+        which matches the order in which libusb_get_device_list (and therefore
+        librtlsdr / libhackrf) enumerates devices. This lets callers map a
+        librtlsdr device index to a stable USB port path without depending on
+        lsusb output order.
+        """
+        devices: List[Tuple[int, int, str]] = []
+        try:
+            for entry in Path("/sys/bus/usb/devices").iterdir():
+                if entry.name.startswith("usb"):
+                    continue
+                vid_file = entry / "idVendor"
+                pid_file = entry / "idProduct"
+                bus_file = entry / "busnum"
+                dev_file = entry / "devnum"
+                if not (vid_file.exists() and pid_file.exists()
+                        and bus_file.exists() and dev_file.exists()):
+                    continue
+                try:
+                    if (vid_file.read_text().strip().lower() == vendor_id.lower()
+                            and pid_file.read_text().strip().lower() == product_id.lower()):
+                        bus = int(bus_file.read_text().strip())
+                        dev = int(dev_file.read_text().strip())
+                        devices.append((bus, dev, entry.name))
+                except (ValueError, IOError):
+                    continue
+        except Exception:
+            pass
+        devices.sort(key=lambda e: (e[0], e[1]))
+        return devices
+
     def _get_usb_path_by_vid_pid(self, vendor_id: str, product_id: str,
                                   instance: int = 0) -> str:
         """Get USB path for device by vendor/product ID"""
@@ -157,23 +193,13 @@ class DeviceManager:
 
             num_devices = int(match.group(1))
 
-            # Get USB paths for each RTL-SDR (VID:PID = 0bda:2838)
-            usb_paths = []
-            try:
-                lsusb_result = subprocess.run(
-                    ["lsusb", "-d", "0bda:2838"],
-                    capture_output=True, text=True, timeout=5
-                )
-                for line in lsusb_result.stdout.strip().split('\n'):
-                    if line:
-                        match = re.match(r'Bus (\d+) Device (\d+):', line)
-                        if match:
-                            bus = int(match.group(1))
-                            dev = int(match.group(2))
-                            path = self._get_usb_path_for_device(bus, dev)
-                            usb_paths.append(path)
-            except Exception:
-                usb_paths = ["unknown"] * num_devices
+            # Enumerate USB paths in libusb's (bus, devnum) order so that
+            # device index N from rtl_test corresponds to usb_paths[N].
+            # (VID:PID = 0bda:2838 covers RTL2832U-based dongles.)
+            usb_entries = self._enumerate_usb_by_vid_pid("0bda", "2838")
+            usb_paths = [e[2] for e in usb_entries]
+            if len(usb_paths) < num_devices:
+                usb_paths.extend(["unknown"] * (num_devices - len(usb_paths)))
 
             # Parse device info
             device_pattern = re.compile(

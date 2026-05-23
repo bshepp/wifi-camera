@@ -202,22 +202,24 @@ class BandCapture:
         if frames_dir.exists():
             self.frame_count = len(list(frames_dir.glob("frame_*.jpg")))
     
-    def capture_rtlsdr(self, device_index: int, name: str, band: Dict, 
+    def capture_rtlsdr(self, device_index: int, name: str, band: Dict,
                        pass_num: int) -> bool:
         """Capture from RTL-SDR at specified band"""
         freq = band["center"]
         band_name = band["name"]
-        
+
         filename = f"{name}_{band_name}_p{pass_num:03d}.bin"
         filepath = self.output_dir / "iq_data" / name / filename
         filepath.parent.mkdir(parents=True, exist_ok=True)
-        
+
+        # rtl_sdr's -n is the number of IQ pairs; internally it writes 2 bytes
+        # per IQ pair, so the output file ends up at samples_per_band * 2 bytes.
         cmd = [
             'rtl_sdr',
             '-d', str(device_index),
             '-f', str(freq),
             '-s', str(self.config.rtlsdr_sample_rate),
-            '-n', str(self.config.rtlsdr_samples_per_band * 2),
+            '-n', str(self.config.rtlsdr_samples_per_band),
             str(filepath)
         ]
         
@@ -255,6 +257,8 @@ class BandCapture:
         filepath = self.output_dir / "iq_data" / "hackrf" / filename
         filepath.parent.mkdir(parents=True, exist_ok=True)
         
+        # hackrf_transfer's -n is the number of IQ pairs (it writes 2 bytes per
+        # pair). Passing samples_per_band yields exactly that many IQ pairs.
         cmd = [
             'hackrf_transfer',
             '-r', str(filepath),
@@ -262,7 +266,7 @@ class BandCapture:
             '-s', str(self.config.hackrf_sample_rate),
             '-l', str(self.config.hackrf_lna_gain),
             '-g', str(self.config.hackrf_vga_gain),
-            '-n', str(self.config.hackrf_samples_per_band * 2)
+            '-n', str(self.config.hackrf_samples_per_band)
         ]
         
         timestamp = time.time()

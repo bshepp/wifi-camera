@@ -329,24 +329,38 @@ class WiFiCameraProcessor:
         self._hackrf: Optional[np.ndarray] = None
 
     def load_rtlsdr_left(self, samples: int = -1) -> np.ndarray:
-        """Load left RTL-SDR data (unsigned 8-bit format)"""
-        if self._rtlsdr_left is None or samples > 0:
+        """Load left RTL-SDR data (unsigned 8-bit format).
+
+        Only the full-file load is cached. Partial loads (samples > 0) always
+        re-read from disk to avoid returning a previously-cached short array
+        when the caller asks for the full file later.
+        """
+        if samples > 0:
             filepath = self.session_dir / "rtlsdr_left.bin"
-            self._rtlsdr_left = load_rtlsdr_iq(filepath, samples=samples)
+            return load_rtlsdr_iq(filepath, samples=samples)
+        if self._rtlsdr_left is None:
+            filepath = self.session_dir / "rtlsdr_left.bin"
+            self._rtlsdr_left = load_rtlsdr_iq(filepath, samples=-1)
         return self._rtlsdr_left
 
     def load_rtlsdr_right(self, samples: int = -1) -> np.ndarray:
-        """Load right RTL-SDR data (unsigned 8-bit format)"""
-        if self._rtlsdr_right is None or samples > 0:
+        """Load right RTL-SDR data (unsigned 8-bit format). See load_rtlsdr_left."""
+        if samples > 0:
             filepath = self.session_dir / "rtlsdr_right.bin"
-            self._rtlsdr_right = load_rtlsdr_iq(filepath, samples=samples)
+            return load_rtlsdr_iq(filepath, samples=samples)
+        if self._rtlsdr_right is None:
+            filepath = self.session_dir / "rtlsdr_right.bin"
+            self._rtlsdr_right = load_rtlsdr_iq(filepath, samples=-1)
         return self._rtlsdr_right
 
     def load_hackrf(self, samples: int = -1) -> np.ndarray:
-        """Load HackRF data (signed 8-bit format)"""
-        if self._hackrf is None or samples > 0:
+        """Load HackRF data (signed 8-bit format). See load_rtlsdr_left."""
+        if samples > 0:
             filepath = self.session_dir / "hackrf.bin"
-            self._hackrf = load_hackrf_iq(filepath, samples=samples)
+            return load_hackrf_iq(filepath, samples=samples)
+        if self._hackrf is None:
+            filepath = self.session_dir / "hackrf.bin"
+            self._hackrf = load_hackrf_iq(filepath, samples=-1)
         return self._hackrf
 
     def align_rtlsdr_channels(self) -> int:
@@ -382,8 +396,9 @@ class WiFiCameraProcessor:
             surveillance = self.load_rtlsdr_right()
 
         if use_hackrf_reference:
-            # TODO: Implement resampling from 20 MSPS to 2.4 MSPS
-            # For now, use other RTL-SDR as reference
+            # TODO: Implement resampling from HackRF rate (default 8 MSPS) down
+            # to the RTL-SDR rate (default 2.56 MSPS). For now, fall back to
+            # using the other RTL-SDR as reference.
             print("WARNING: HackRF reference requires resampling, using RTL-SDR reference")
             use_hackrf_reference = False
 

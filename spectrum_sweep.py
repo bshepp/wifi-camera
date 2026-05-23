@@ -198,15 +198,14 @@ class SyncedSweepCapture:
     
     def capture_rtlsdr(self, device_index: int, freq_hz: int, name: str) -> Tuple[bytes, float]:
         """Capture IQ from a single RTL-SDR"""
-        bytes_to_capture = self.config.rtlsdr_samples_per_step * 2
-        
+        # rtl_sdr's -n counts IQ pairs (2 bytes each on disk / stdout).
         cmd = [
             'rtl_sdr',
             '-d', str(device_index),
             '-f', str(freq_hz),
             '-s', str(self.config.rtlsdr_sample_rate),
             '-g', self.config.gain,
-            '-n', str(bytes_to_capture),
+            '-n', str(self.config.rtlsdr_samples_per_step),
             '-'
         ]
         
@@ -228,6 +227,7 @@ class SyncedSweepCapture:
         # Calculate duration for desired samples
         duration_ms = int((self.config.hackrf_samples_per_step / self.config.hackrf_sample_rate) * 1000) + 50
         
+        # hackrf_transfer's -n counts IQ pairs (2 bytes each on disk).
         cmd = [
             'hackrf_transfer',
             '-r', str(temp_file),
@@ -235,7 +235,7 @@ class SyncedSweepCapture:
             '-s', str(self.config.hackrf_sample_rate),
             '-l', str(self.config.hackrf_lna_gain),
             '-g', str(self.config.hackrf_vga_gain),
-            '-n', str(self.config.hackrf_samples_per_step * 2)  # Bytes (IQ pairs)
+            '-n', str(self.config.hackrf_samples_per_step)
         ]
         
         start_time = time.time()

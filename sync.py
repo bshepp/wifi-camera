@@ -12,7 +12,8 @@ Based on investigation of captured data:
 - RTL-SDRs show ~10 ppm relative clock drift
 - first_data_time reflects USB buffer delivery, not ADC start
 - Cross-correlation is more accurate than timestamp-based alignment
-- HackRF shows significant sample loss at 20 MSPS (USB bandwidth issue)
+- HackRF historically lost samples at the upper end of USB 2.0 bandwidth;
+  the current default of 8 MSPS is well within the stable envelope.
 """
 
 import numpy as np
@@ -292,22 +293,25 @@ def apply_drift_correction(iq_data: np.ndarray, drift_ppm: float,
                            sample_rate: float) -> np.ndarray:
     """
     Apply clock drift correction via resampling.
-    
+
     Args:
         iq_data: Complex IQ data to correct
-        drift_ppm: Drift in parts per million (positive = this stream is fast)
+        drift_ppm: Drift in parts per million (positive = this stream is fast,
+                   i.e. its clock produced extra samples in a given wall-clock interval)
         sample_rate: Original sample rate
-    
+
     Returns:
-        Resampled IQ data with drift corrected
+        Resampled IQ data with drift corrected (same wall-clock duration,
+        sample count matching the nominal rate)
     """
     if abs(drift_ppm) < 0.1:
         return iq_data  # Negligible drift
-    
-    # Calculate resampling ratio
-    # If drift is positive (this stream is fast), we need to stretch it (upsample)
-    ratio = 1 + drift_ppm * 1e-6
-    
+
+    # A fast clock (drift_ppm > 0) produced too many samples for the elapsed
+    # wall-clock time. To bring it onto the nominal timebase we resample to
+    # fewer samples, i.e. ratio < 1. Conversely, a slow clock needs upsampling.
+    ratio = 1.0 / (1.0 + drift_ppm * 1e-6)
+
     new_length = int(len(iq_data) * ratio)
     
     # Use linear interpolation for speed (could use scipy.signal.resample for quality)

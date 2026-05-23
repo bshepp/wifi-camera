@@ -34,6 +34,11 @@ class GPSFix:
     fix_quality: int  # 0=invalid, 1=GPS, 2=DGPS
     speed_knots: float
     valid: bool
+    # System time (time.time()) at the moment the NMEA sentence completing
+    # this fix was received from the serial port. Used so that
+    # `system_recv_time - timestamp` reflects (clock offset + NMEA latency)
+    # rather than (clock offset + NMEA latency + age-of-last-fix).
+    system_recv_time: float = 0.0
 
 
 class NMEAParser:
@@ -190,6 +195,10 @@ class GPSReader:
         while self.running:
             try:
                 line = self.serial.readline()
+                # Capture system time as close as possible to the moment the
+                # NMEA sentence finished arriving on the serial port; this is
+                # what get_time_offset() uses to anchor the clock comparison.
+                recv_time = time.time()
                 if not line:
                     continue
 
@@ -207,21 +216,25 @@ class GPSReader:
                     if data:
                         with self._lock:
                             self._last_gga = data
-                        self._try_build_fix()
+                        self._try_build_fix(recv_time)
 
                 elif 'RMC' in sentence:
                     data = NMEAParser.parse_rmc(sentence)
                     if data:
                         with self._lock:
                             self._last_rmc = data
-                        self._try_build_fix()
+                        self._try_build_fix(recv_time)
 
             except Exception as e:
                 if self.running:
                     time.sleep(0.1)
 
-    def _try_build_fix(self):
-        """Try to build a complete fix from GGA and RMC data"""
+    def _try_build_fix(self, recv_time: float):
+        """Try to build a complete fix from GGA and RMC data.
+
+        recv_time is the system time captured when the NMEA sentence that
+        triggered this build attempt finished arriving on the serial port.
+        """
         with self._lock:
             if not self._last_gga or not self._last_rmc:
                 return
@@ -267,6 +280,7 @@ class GPSReader:
                 fix_quality=gga.get('fix_quality', 0),
                 speed_knots=rmc.get('speed_knots', 0.0),
                 valid=rmc.get('valid', False) and gga.get('fix_quality', 0) > 0,
+                system_recv_time=recv_time,
             )
 
             self._last_fix = fix
@@ -294,14 +308,21 @@ class GPSReader:
     def get_time_offset(self) -> Optional[float]:
         """
         Get offset between system time and GPS time.
-        
-        Returns: (system_time - gps_time) in seconds
-                 Positive means system is ahead of GPS
+
+        Returns: (system_recv_time - gps_time) in seconds, anchored at the
+                 moment the NMEA sentence completing the last fix was received
+                 (not at "now"). Positive means the system clock is ahead.
+
+                 This is (true clock offset) + (NMEA transport latency from the
+                 GPS instant to serial arrival). The NMEA latency is roughly
+                 constant per receiver — for sub-ms accuracy a PPS sync is
+                 required. Earlier versions of this method used time.time() at
+                 the call site, which folded in up to a full second of
+                 "age of last fix" jitter.
         """
         fix = self.get_fix()
-        if fix and fix.valid:
-            system_time = time.time()
-            return system_time - fix.timestamp
+        if fix and fix.valid and fix.system_recv_time > 0:
+            return fix.system_recv_time - fix.timestamp
         return None
 
     def on_fix(self, callback: Callable[[GPSFix], None]):
