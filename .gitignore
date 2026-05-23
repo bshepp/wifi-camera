@@ -113,6 +113,10 @@ results/
 *.key
 secrets.json
 credentials.json
+.env
 .env.local
 .env.*.local
+# AWS local config / cached credentials should never land in the repo
+.aws/
+aws-credentials*
 

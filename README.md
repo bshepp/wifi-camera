@@ -274,23 +274,26 @@ At the default sample rates (RTL-SDR 2.56 MSPS, HackRF 8 MSPS), each IQ pair is 
 | `devices.py` | Hardware detection and identification |
 | `config.py` | Configuration classes |
 
-## GPU Processing (CUDA)
+## Processing Pipeline (AWS)
 
-For processing on GPU (e.g., RTX 4090):
+Heavy processing — range-Doppler, cross-correlation across long captures,
+ML training on the SageMaker manifests — runs on AWS rather than locally.
+The capture node is a Dell Latitude 7414 (see `~/Projects/CLAUDE.md`);
+its only job on the processing side is `sanity_check.py` / `sync.py` to
+flag obviously bad captures before upload.
 
-```python
-import cupy as cp
-from cupyx.scipy import signal as cusignal
+```bash
+# Build aligned packages + SageMaker train/val split locally
+./correlate_captures.py data/<session> --export
+./export_sagemaker.py data/<session> -o /tmp/sm/
 
-# Load to GPU
-iq_gpu = cp.asarray(iq_data)
-
-# FFT on GPU
-spectrum = cp.fft.fft(iq_gpu)
-
-# Cross-correlation
-corr = cusignal.correlate(ref_gpu, surv_gpu, mode='full')
+# Then upload to S3 for downstream training
+aws s3 sync /tmp/sm/ s3://<bucket>/wifi-camera-data/
 ```
+
+The export tool produces SageMaker-compatible JSON-Lines manifests
+(`train_manifest.jsonl` / `validation_manifest.jsonl`) and `.npy` files
+per sample. See `export_sagemaker.py --help` for split / seed options.
 
 ## Research Goals
 

@@ -241,7 +241,10 @@ Frame-rate and per-device timing-gap checks live in `sync.py` (see
 
 ## Future Development Areas
 
-1. **GPU Processing**: CuPy/CUDA for real-time correlation (RTX 4090 available)
+1. **AWS-side processing**: heavy compute (range-Doppler over long captures,
+   ML training on the SageMaker manifests) runs on AWS — not locally.
+   `export_sagemaker.py` produces the upload-ready training packages;
+   the capture node only does sanity-checking locally.
 2. **GPS PPS Sync**: Hardware timing from GPS 1PPS signal (u-blox 7 installed)
 3. **Real-time Processing**: Live correlation display during capture
 4. **Matched Antennas**: Identical antennas for better phase coherence

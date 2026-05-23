@@ -119,7 +119,7 @@ Whatever SDR you buy is wasted without matched antennas. Worth pairing any radio
 
 ## Recommendation for this project
 
-Based on the current state (validated 915 MHz subsystem, working capture + sync + correlate + export pipeline, RTX 4090 available for processing):
+Based on the current state (validated 915 MHz subsystem, working capture + sync + correlate + export pipeline, AWS-side processing/training via the SageMaker export tool):
 
 1. **Now:** AntSDR E200 (~$350) + 4× matched 2.4 GHz patch antennas (~$100). Single radio replaces the WiFi-side rig entirely, native 2-channel coherent at 2.4/5 GHz, 12-bit.
 2. **If you get serious:** add a second AntSDR E200 for 4 coherent channels, or jump to USRP B210 + GPSDO.
