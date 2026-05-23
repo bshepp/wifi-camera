@@ -80,6 +80,30 @@ class SageMakerExporter:
         self.output_dir = output_dir
         self.correlation = None
         self.metadata = None
+        # Lazily-computed frame filename list, used to resolve frame_index
+        # when correlation_index.json predates the frame_file field.
+        self._frame_files: Optional[List[str]] = None
+
+    def _resolve_frame_filename(self, group: Dict) -> Optional[str]:
+        """Find the on-disk filename for an aligned group's frame.
+
+        Prefers group['frame_file']; falls back to indexing the sorted frames
+        directory so this works for both capture.py sessions (timestamped
+        filenames) and ffmpeg-based sessions (sequential filenames).
+        """
+        name = group.get('frame_file')
+        if name:
+            return name
+        if self._frame_files is None:
+            frames_dir = self.session_dir / "frames"
+            if frames_dir.exists():
+                self._frame_files = sorted(p.name for p in frames_dir.glob("frame_*.jpg"))
+            else:
+                self._frame_files = []
+        idx = group.get('frame_index', -1)
+        if 0 <= idx < len(self._frame_files):
+            return self._frame_files[idx]
+        return None
         
     def load_session(self) -> bool:
         """Load correlation index and metadata"""
@@ -250,12 +274,14 @@ class SageMakerExporter:
                 np.save(sample_dir / out_name, iq_data)
                 stats["total_iq_bytes"] += iq_data.nbytes
         
-        # Export frame
-        frame_file = self.session_dir / "frames" / f"frame_{frame_idx + 1:06d}.jpg"
-        frame_data = load_frame(frame_file)
-        if frame_data is not None:
-            np.save(sample_dir / "frame.npy", frame_data)
-            stats["total_frame_bytes"] += frame_data.nbytes
+        # Export frame (prefer embedded filename, fall back to glob-by-index)
+        frame_name = self._resolve_frame_filename(group)
+        if frame_name:
+            frame_file = self.session_dir / "frames" / frame_name
+            frame_data = load_frame(frame_file)
+            if frame_data is not None:
+                np.save(sample_dir / "frame.npy", frame_data)
+                stats["total_frame_bytes"] += frame_data.nbytes
         
         # Write sample metadata
         with open(sample_dir / "meta.json", 'w') as f:

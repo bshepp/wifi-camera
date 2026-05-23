@@ -287,13 +287,22 @@ class CaptureCorrelator:
                     "offset_ms": offset_ms
                 })
         
-        # Build aligned groups export
+        # Build aligned groups export. Embed the resolved frame filename so
+        # downstream consumers (align_data, export_sagemaker) don't have to
+        # reconstruct it — different capture scripts use different patterns
+        # (ffmpeg's frame_000001.jpg vs capture.py's frame_000000_TS.jpg).
         aligned_groups = []
         for group in groups:
+            frame_file = (
+                self.frames[group.frame_index].filename
+                if 0 <= group.frame_index < len(self.frames)
+                else None
+            )
             aligned_groups.append({
                 "timestamp": group.timestamp,
                 "elapsed_s": group.timestamp - self.start_time,
                 "frame_index": group.frame_index,
+                "frame_file": frame_file,
                 "time_spread_ms": group.time_spread_ms,
                 "captures": {
                     device: {

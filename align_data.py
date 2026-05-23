@@ -67,20 +67,48 @@ class DataAligner:
         self.correlation = None
         self.metadata = None
         self.aligned_packages: List[AlignedPackage] = []
-        
+
         # Sample rates for IQ loading
         self.sample_rates = {
             'left': 2_560_000,
             'right': 2_560_000,
             'hackrf': 8_000_000
         }
-        
+
         # IQ data format
         self.iq_dtype = {
             'left': np.uint8,    # RTL-SDR: unsigned
             'right': np.uint8,
             'hackrf': np.int8   # HackRF: signed
         }
+
+        # Lazily-computed list of frame filenames in session order.
+        # Used as a fallback when correlation_index.json predates the
+        # frame_file field.
+        self._frame_files: Optional[List[str]] = None
+
+    def _resolve_frame_filename(self, group: Dict) -> Optional[str]:
+        """Find the on-disk filename for an aligned group's frame.
+
+        Prefers group['frame_file'] when present (written by current
+        correlate_captures). Falls back to indexing the sorted frames
+        directory so this works on capture.py sessions whose filenames
+        embed a timestamp (frame_NNNNNN_TS.jpg) as well as on the
+        ffmpeg pattern (frame_NNNNNN.jpg).
+        """
+        name = group.get('frame_file')
+        if name:
+            return name
+        if self._frame_files is None:
+            frames_dir = self.session_dir / "frames"
+            if frames_dir.exists():
+                self._frame_files = sorted(p.name for p in frames_dir.glob("frame_*.jpg"))
+            else:
+                self._frame_files = []
+        idx = group.get('frame_index', -1)
+        if 0 <= idx < len(self._frame_files):
+            return self._frame_files[idx]
+        return None
         
     def load_correlation(self) -> bool:
         """Load correlation index"""
@@ -181,10 +209,10 @@ class DataAligner:
                     
                 captures[device] = capture
             
-            # Determine frame file
+            # Determine frame file (prefer embedded name, fall back to glob)
             frame_idx = group['frame_index']
-            frame_file = f"frame_{frame_idx+1:06d}.jpg"  # Frames are 1-indexed in filenames
-            
+            frame_file = self._resolve_frame_filename(group) or ""
+
             package = AlignedPackage(
                 group_index=i,
                 timestamp=group['timestamp'],
@@ -194,8 +222,8 @@ class DataAligner:
                 time_spread_ms=group['time_spread_ms'],
                 captures=captures
             )
-            
-            if load_frames:
+
+            if load_frames and frame_file:
                 package.frame_data = self.load_frame(frame_file)
                 
             self.aligned_packages.append(package)
