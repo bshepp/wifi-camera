@@ -123,26 +123,34 @@ class SageMakerExporter:
             
         return True
     
-    def export_samples(self, train_ratio: float = 0.8, 
+    def export_samples(self, train_ratio: float = 0.8,
                        max_samples: int = 0,
-                       min_devices: int = 2) -> Dict:
-        """Export individual samples with train/val split"""
-        
+                       min_devices: int = 2,
+                       seed: Optional[int] = None) -> Dict:
+        """Export individual samples with train/val split.
+
+        Shuffling is seeded (default 0) so runs are reproducible. The
+        max_samples cap is applied *after* the shuffle so the chosen
+        subset is random rather than just the first N groups in JSON order.
+        """
+
         aligned_groups = self.correlation.get("aligned_groups", [])
-        
+
         # Filter by minimum devices
         groups = [g for g in aligned_groups if len(g["captures"]) >= min_devices]
-        
-        if max_samples > 0:
-            groups = groups[:max_samples]
-            
+
         if not groups:
             print("No aligned groups to export!")
             return {}
-        
-        # Shuffle for random split
-        random.shuffle(groups)
-        
+
+        # Seeded shuffle for reproducibility
+        rng = random.Random(0 if seed is None else seed)
+        rng.shuffle(groups)
+
+        # Apply max_samples *after* shuffling so the subset is random
+        if max_samples > 0:
+            groups = groups[:max_samples]
+
         split_idx = int(len(groups) * train_ratio)
         train_groups = groups[:split_idx]
         val_groups = groups[split_idx:]
@@ -304,7 +312,9 @@ def main():
                         help='Maximum samples to export (0 = all)')
     parser.add_argument('--min-devices', type=int, default=2,
                         help='Minimum devices per sample (default: 2)')
-    
+    parser.add_argument('--seed', type=int, default=0,
+                        help='Random seed for train/val shuffle (default: 0)')
+
     args = parser.parse_args()
     
     session_dir = Path(args.session_dir)
@@ -324,7 +334,8 @@ def main():
     stats = exporter.export_samples(
         train_ratio=args.train_ratio,
         max_samples=args.max_samples,
-        min_devices=args.min_devices
+        min_devices=args.min_devices,
+        seed=args.seed
     )
     
     if not stats:
