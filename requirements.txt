@@ -5,6 +5,10 @@ numpy>=1.26.0
 pyserial>=3.5      # GPS NMEA reading
 pillow>=10.0       # frame image loading in align_data / export_sagemaker
 
+# Processing only (needed when running process.py with use_hackrf_reference;
+# capture-only nodes can skip this):
+scipy>=1.11.0      # polyphase resampling (resample_poly) for HackRF reference
+
 # System tools (not pip-installable, but required at runtime):
 #   rtl_sdr           — apt install rtl-sdr
 #   hackrf_transfer   — apt install hackrf

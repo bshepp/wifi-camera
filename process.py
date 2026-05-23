@@ -13,10 +13,28 @@ import numpy as np
 from pathlib import Path
 from typing import Tuple, Optional, Dict, List
 from dataclasses import dataclass
+from math import gcd
 import json
 
 # Constants
 SPEED_OF_LIGHT = 299_792_458  # m/s
+
+
+def resample_iq(iq: np.ndarray, src_rate: int, dst_rate: int) -> np.ndarray:
+    """Polyphase-resample complex IQ from src_rate to dst_rate.
+
+    For default HackRF→RTL-SDR (8 MSPS → 2.56 MSPS) this is up-8 / down-25.
+    Uses scipy.signal.resample_poly (which handles complex input natively
+    and applies the appropriate anti-aliasing filter).
+    """
+    if src_rate == dst_rate:
+        return iq
+    # Imported lazily so capture-only environments don't need scipy.
+    from scipy.signal import resample_poly
+    g = gcd(src_rate, dst_rate)
+    up = dst_rate // g
+    down = src_rate // g
+    return resample_poly(iq, up, down).astype(np.complex64)
 
 
 @dataclass
@@ -385,8 +403,10 @@ class WiFiCameraProcessor:
         Compute range-Doppler map.
 
         Args:
-            use_hackrf_reference: If True, use HackRF as reference (requires resampling).
-                                  If False, use one RTL-SDR as reference.
+            use_hackrf_reference: If True, use HackRF as reference, polyphase-
+                                  resampled to the RTL-SDR rate so both arms
+                                  of the correlation share a common timebase.
+                                  If False, use the other RTL-SDR as reference.
             surveillance_channel: "left" or "right" RTL-SDR for surveillance.
         """
         # Load surveillance channel
@@ -396,14 +416,15 @@ class WiFiCameraProcessor:
             surveillance = self.load_rtlsdr_right()
 
         if use_hackrf_reference:
-            # TODO: Implement resampling from HackRF rate (default 8 MSPS) down
-            # to the RTL-SDR rate (default 2.56 MSPS). For now, fall back to
-            # using the other RTL-SDR as reference.
-            print("WARNING: HackRF reference requires resampling, using RTL-SDR reference")
-            use_hackrf_reference = False
-
-        if not use_hackrf_reference:
-            # Use other RTL-SDR as reference
+            reference = self.load_hackrf()
+            if self.params.hackrf_sample_rate != self.params.rtlsdr_sample_rate:
+                reference = resample_iq(
+                    reference,
+                    self.params.hackrf_sample_rate,
+                    self.params.rtlsdr_sample_rate,
+                )
+        else:
+            # Use the other RTL-SDR as reference (already on the same rate)
             if surveillance_channel == "left":
                 reference = self.load_rtlsdr_right()
             else:
