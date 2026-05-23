@@ -449,7 +449,7 @@ class WiFiCameraCapture:
     def _build_hackrf_command(self, output_file: Path) -> List[str]:
         """Build hackrf_transfer command for capture"""
         cfg = self.config.hackrf
-        return [
+        cmd = [
             "hackrf_transfer",
             "-r", "-",  # Receive to stdout
             "-f", str(cfg.frequency),
@@ -458,6 +458,12 @@ class WiFiCameraCapture:
             "-g", str(cfg.vga_gain),
             "-a", "1" if cfg.amp_enable else "0",
         ]
+        # Explicit baseband filter when configured. HackRF quantizes to a
+        # fixed set (1.75/2.5/3.5/5/5.5/6/7/8/9/10/12/14/15/20/24/28 MHz);
+        # values are rounded up to the nearest supported width internally.
+        if cfg.baseband_filter and cfg.baseband_filter > 0:
+            cmd.extend(["-b", str(cfg.baseband_filter)])
+        return cmd
 
     def start(self, coordinated: bool = True):
         """
