@@ -168,17 +168,39 @@ def analyze_iq_file(name: str, filepath: Path, is_hackrf: bool = False) -> IQSta
 
 
 def check_correlation(left_iq: np.ndarray, right_iq: np.ndarray) -> Dict:
-    """Check correlation between left and right RTL-SDR channels"""
-    n = min(50000, len(left_iq), len(right_iq))
+    """Check correlation between left and right RTL-SDR channels.
+
+    Uses up to 500k samples (~195 ms at 2.56 MSPS) via an FFT-based
+    correlation rather than the previous 10k-sample O(n^2) np.correlate —
+    enough to find the alignment peak even when the inter-stream offset
+    is in the multi-millisecond range, while staying interactive.
+    """
+    n = min(500_000, len(left_iq), len(right_iq))
     left = left_iq[:n]
     right = right_iq[:n]
 
-    # Time offset via cross-correlation
-    corr = np.correlate(np.abs(left[:10000]), np.abs(right[:10000]), mode='full')
-    offset = int(np.argmax(corr) - len(left[:10000]) + 1)
+    # Time offset via FFT-based envelope correlation. Envelope (|IQ|) is
+    # robust to the per-stream phase rotation that defeats raw IQ
+    # correlation; FFT keeps us O(n log n).
+    env_l = np.abs(left).astype(np.float32)
+    env_r = np.abs(right).astype(np.float32)
+    env_l -= env_l.mean()
+    env_r -= env_r.mean()
+    nfft = 1 << ((2 * n - 1).bit_length())
+    L = np.fft.rfft(env_l, nfft)
+    R = np.fft.rfft(env_r, nfft)
+    xcorr = np.fft.irfft(L * np.conj(R), nfft)
+    # Positive lags are in xcorr[:n], negative lags wrap around in xcorr[-n+1:]
+    peak_pos = int(np.argmax(xcorr[:n]))
+    peak_neg = int(np.argmax(xcorr[-(n - 1):]))
+    if xcorr[peak_pos] >= xcorr[-(n - 1) + peak_neg]:
+        offset = peak_pos
+    else:
+        offset = peak_neg - (n - 1)
 
-    # Correlation coefficient
-    corr_coef = float(np.corrcoef(np.abs(left[:10000]), np.abs(right[:10000]))[0, 1])
+    # Correlation coefficient on envelopes, computed over the full window
+    # (was using the same 10k subset as the offset estimate above).
+    corr_coef = float(np.corrcoef(np.abs(left), np.abs(right))[0, 1])
 
     # Phase coherence
     cross = left * np.conj(right)
