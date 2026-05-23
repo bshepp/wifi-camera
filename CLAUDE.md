@@ -223,7 +223,7 @@ Total sustained rate: ~25 MB/s
 1. **RTL-SDR Serial Numbers**: Both devices report "00000001" - must use USB path
 2. **Signed vs Unsigned IQ**: HackRF uses int8, RTL-SDR uses uint8 - easy to mix up
 3. **Antenna Mismatch**: Current setup uses mismatched antennas → weaker correlation
-4. **GPS Time Offset**: GPS provides system clock offset measurement (~285ms typical)
+4. **GPS Time Offset**: `gps.get_time_offset()` returns `(system_recv_time - gps_time)` anchored at the moment the NMEA sentence completing the last fix arrived on the serial port. This is (true clock offset) + (NMEA transport latency from the GPS instant to serial delivery), and the NMEA-latency floor is typically tens to ~150 ms depending on the receiver. Sub-ms accuracy requires PPS hardware sync.
 5. **Buffer Overflows**: At high CPU load, SDR processes may drop samples
 6. **RTL-SDR Thermal Throttling**: Devices overheat during extended captures (>30 min). Add heatsinks or cooling breaks. Full spectrum sweeps (~2 hours) will likely cause thermal crashes without cooling.
 
@@ -231,10 +231,13 @@ Total sustained rate: ~25 MB/s
 
 Successful capture indicators (from sanity_check.py):
 - SNR: 20-50 dB across all devices
-- DC offset: I/Q mean near 0.0 (±0.1)
-- Frame rate: 29.5-30.5 fps
-- Timing gaps: <100ms between devices
-- No clipping: I/Q values not saturated at min/max
+- DC offset within tool tolerance: RTL-SDR raw I/Q mean within ±15 of 127.5
+  (uint8 center); HackRF DC offset check is not enforced (int8, centered at 0)
+- I/Q channel std > 1 (i.e., not stuck or saturated)
+- Cross-correlation between LEFT and RIGHT > 0.5 = strong
+
+Frame-rate and per-device timing-gap checks live in `sync.py` (see
+`SessionSync.generate_report`), not `sanity_check.py`.
 
 ## Future Development Areas
 

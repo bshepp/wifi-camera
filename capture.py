@@ -544,7 +544,7 @@ class WiFiCameraCapture:
             self.captures["hackrf"] = capture
             if coordinated and barrier:
                 t = threading.Thread(target=capture.start_coordinated, daemon=True)
-                start_threads.append(("HackRF", t, "20 MSPS"))
+                start_threads.append(("HackRF", t, f"{self.config.hackrf.sample_rate // 1_000_000} MSPS"))
 
         # Start all SDR streams with coordinated timing
         if coordinated and barrier and start_threads:

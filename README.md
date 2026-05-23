@@ -239,12 +239,14 @@ This provides:
 
 ## Data Rates
 
+At the default sample rates (RTL-SDR 2.56 MSPS, HackRF 8 MSPS), each IQ pair is 2 bytes:
+
 | Device | Data Rate | 5-min Capture |
 |--------|-----------|---------------|
-| RTL-SDR (each) | ~4.8 MB/s | ~1.4 GB |
-| HackRF | ~10 MB/s | ~3 GB |
-| Webcam | ~5 MB/s | ~2 GB |
-| **Total** | **~25 MB/s** | **~8 GB** |
+| RTL-SDR (each) | ~5.1 MB/s | ~1.5 GB |
+| HackRF | ~16 MB/s | ~4.8 GB |
+| Webcam (MJPEG 720p30) | ~3–6 MB/s | ~1–2 GB |
+| **Total** | **~30 MB/s** | **~9 GB** |
 
 ## Physical Parameters
 
@@ -341,8 +343,8 @@ cd radar_test_915mhz
 **EXPERIMENTAL** - Active development
 
 Initial 5-minute captures successful with:
-- Stable data rates (~45 MB/s sustained)
-- 8,984 frames at 29.9 fps
+- Stable sustained data rates at default sample rates (see Data Rates table)
+- ~9,000 frames at 29.9 fps
 - Per-device timestamps synchronized
 - SNR: 21-46 dB across devices
 
