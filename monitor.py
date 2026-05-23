@@ -289,12 +289,14 @@ def print_capture_status(capture_dir: Path, rates: Dict[str, float]):
     print(f"\n{Colors.BOLD}{'File':<20} {'Size':>12} {'Rate':>12} {'Status':<10}{Colors.RESET}")
     print(f"{'-'*56}")
 
-    # Expected rates for "active" detection
+    # Expected rates for "active" detection, calibrated for the current
+    # default sample rates (RTL-SDR 2.56 MSPS = 5.12 MB/s, HackRF 8 MSPS
+    # = 16 MB/s). webcam.mkv is no longer written — capture.py emits
+    # individual JPEGs in frames/ which are reported separately below.
     expected_rates = {
-        "rtlsdr_left.bin": 3_000_000,   # ~3 MB/s
-        "rtlsdr_right.bin": 3_000_000,
-        "hackrf.bin": 30_000_000,        # ~30 MB/s
-        "webcam.mkv": 500_000,           # ~0.5 MB/s
+        "rtlsdr_left.bin": 5_000_000,
+        "rtlsdr_right.bin": 5_000_000,
+        "hackrf.bin": 16_000_000,
     }
 
     total_size = 0
@@ -328,10 +330,11 @@ def print_capture_status(capture_dir: Path, rates: Dict[str, float]):
     print(f"{'-'*56}")
     print(f"{'TOTAL':<20} {format_bytes(total_size):>12} {format_rate(total_rate):>12}")
 
-    # Webcam status
-    webcam_file = capture_dir / "webcam.mkv"
-    if webcam_file.exists():
-        print(f"\n{Colors.BOLD}Webcam:{Colors.RESET} {format_bytes(webcam_file.stat().st_size)}")
+    # Webcam status (modern sessions store individual frames)
+    frames_dir = capture_dir / "frames"
+    if frames_dir.exists():
+        frame_count = sum(1 for _ in frames_dir.glob("frame_*.jpg"))
+        print(f"\n{Colors.BOLD}Webcam:{Colors.RESET} {frame_count} frames in {frames_dir.name}/")
 
 
 def monitor_once():
