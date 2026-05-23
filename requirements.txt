@@ -9,6 +9,9 @@ pillow>=10.0       # frame image loading in align_data / export_sagemaker
 # capture-only nodes can skip this):
 scipy>=1.11.0      # polyphase resampling (resample_poly) for HackRF reference
 
+# Test only (only required to run pytest tests/):
+pytest>=8.0        # smoke tests for processing path
+
 # System tools (not pip-installable, but required at runtime):
 #   rtl_sdr           — apt install rtl-sdr
 #   hackrf_transfer   — apt install hackrf
