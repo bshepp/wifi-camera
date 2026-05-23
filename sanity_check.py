@@ -58,14 +58,19 @@ def load_rtlsdr_iq(filepath: Path, max_samples: int = 1000000) -> Tuple[np.ndarr
 
 
 def load_hackrf_iq(filepath: Path, max_samples: int = 1000000) -> Tuple[np.ndarray, np.ndarray]:
-    """Load HackRF IQ data (signed 8-bit)"""
+    """Load HackRF IQ data (signed 8-bit).
+
+    Returns (complex IQ, raw int8 channel array). Raw values are in their
+    native int8 range so I/Q mean prints near 0 for a healthy DC-centered
+    signal — earlier this function reloaded the file as uint8 which made
+    HackRF stats look like RTL-SDR (~127.5 mean) regardless of the actual
+    DC offset.
+    """
     raw = np.fromfile(filepath, dtype=np.int8, count=max_samples * 2)
     raw = raw.reshape(-1, 2)
     iq = raw[:, 0].astype(np.float32) / 128.0 + \
          1j * raw[:, 1].astype(np.float32) / 128.0
-    # Return raw as uint8 view for consistent stats display
-    raw_uint8 = np.fromfile(filepath, dtype=np.uint8, count=max_samples * 2).reshape(-1, 2)
-    return iq, raw_uint8
+    return iq, raw
 
 
 def compute_spectrum(iq: np.ndarray, fft_size: int = 8192) -> Tuple[float, float]:
@@ -111,16 +116,16 @@ def analyze_iq_file(name: str, filepath: Path, is_hackrf: bool = False) -> IQSta
     q_mean = float(raw[:, 1].mean())
     q_std = float(raw[:, 1].std())
 
-    # Check for issues
-    if not is_hackrf:
-        if i_std < 1.0:
-            issues.append("I channel very low variance")
-        if q_std < 1.0:
-            issues.append("Q channel very low variance")
-        if abs(i_mean - 127.5) > 15:
-            issues.append(f"I channel DC offset: {i_mean - 127.5:.1f}")
-        if abs(q_mean - 127.5) > 15:
-            issues.append(f"Q channel DC offset: {q_mean - 127.5:.1f}")
+    # Check for issues. RTL-SDR (uint8) is centered at 127.5; HackRF (int8)
+    # is centered at 0. The std-threshold is the same in either scale.
+    if i_std < 1.0:
+        issues.append("I channel very low variance")
+    if q_std < 1.0:
+        issues.append("Q channel very low variance")
+    if abs(i_mean - expected_center) > 15:
+        issues.append(f"I channel DC offset: {i_mean - expected_center:+.1f}")
+    if abs(q_mean - expected_center) > 15:
+        issues.append(f"Q channel DC offset: {q_mean - expected_center:+.1f}")
 
     # IQ statistics
     magnitude_mean = float(np.abs(iq).mean())
