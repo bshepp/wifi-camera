@@ -204,10 +204,15 @@ class SyncedSweepCapture:
             '-d', str(device_index),
             '-f', str(freq_hz),
             '-s', str(self.config.rtlsdr_sample_rate),
-            '-g', self.config.gain,
             '-n', str(self.config.rtlsdr_samples_per_step),
-            '-'
         ]
+        # rtl_sdr's -g is parsed via atoi, so "auto" silently becomes 0 (which
+        # happens to mean auto-gain by convention). Omitting -g entirely is
+        # the documented way to get automatic gain; mirror the convention used
+        # in capture_active_bands.py to avoid relying on that coincidence.
+        if self.config.gain != "auto":
+            cmd.extend(['-g', str(self.config.gain)])
+        cmd.append('-')
         
         start_time = time.time()
         try:
@@ -281,14 +286,16 @@ class SyncedSweepCapture:
                 barrier_count += 1
                 
         if barrier_count == 0:
-            # No devices can capture this frequency
-            return FrequencyCapture(
+            # No devices can capture this frequency. Caller unpacks
+            # (capture, results) so we must return a tuple here too.
+            empty_capture = FrequencyCapture(
                 frequency_hz=freq_hz,
                 frequency_mhz=freq_mhz,
                 timestamp_start=time.time(),
                 timestamp_end=time.time(),
                 rtlsdr_in_range=rtlsdr_in_range
             )
+            return empty_capture, {}
         
         barrier = threading.Barrier(barrier_count)
         

@@ -269,26 +269,6 @@ def measure_clock_drift(filepath1: Path, filepath2: Path,
     )
 
 
-def detect_sample_loss(stream_info: StreamInfo, capture_duration: float) -> float:
-    """
-    Detect sample loss by comparing actual vs expected sample count.
-    
-    Args:
-        stream_info: Stream information
-        capture_duration: Total capture duration in seconds
-    
-    Returns:
-        Sample loss as percentage (positive = loss, negative = extra samples)
-    """
-    stream_duration = capture_duration - (stream_info.first_data_time - capture_duration)
-    # Actually, we need the capture start time
-    expected_samples = stream_info.duration_seconds * stream_info.sample_rate
-    actual_samples = stream_info.samples_written
-    
-    loss_pct = (1 - actual_samples / expected_samples) * 100 if expected_samples > 0 else 0
-    return loss_pct
-
-
 def apply_drift_correction(iq_data: np.ndarray, drift_ppm: float,
                            sample_rate: float) -> np.ndarray:
     """
