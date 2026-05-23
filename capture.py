@@ -437,8 +437,12 @@ class WiFiCameraCapture:
             "-f", str(cfg.frequency),
             "-s", str(cfg.sample_rate),
         ]
-        # Only add -g flag if gain > 0 (use automatic gain otherwise)
-        if cfg.gain > 0:
+        # Negative gain is our "auto" sentinel — skip the flag and let rtl_sdr
+        # pick. Any non-negative value is passed through (note that rtl_sdr's
+        # CLI itself treats `-g 0` as auto-gain; for a true literal 0 dB you'd
+        # need pyrtlsdr's API). Previously this was `gain > 0`, which silently
+        # masked a 0.0 setting as auto without making that intent clear.
+        if cfg.gain >= 0:
             cmd.extend(["-g", str(int(cfg.gain))])
         cmd.extend([
             "-p", str(cfg.ppm_correction),
